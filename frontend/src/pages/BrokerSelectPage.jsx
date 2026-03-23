@@ -598,23 +598,6 @@ export default function BrokerSelectPage() {
           </div>
         )}
 
-        {/* Master Zebu Status Success */}
-        {!masterStatusLoading && masterStatus?.connected && (
-          <div className="mb-8 p-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-sm">
-            <div className="flex gap-3 items-start">
-              <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-emerald-200 text-sm mb-1">
-                  Live NSE Data Connected
-                </h3>
-                <p className="text-emerald-100/90 text-sm">
-                  {masterStatus.details?.message || "Master Zebu account is active and streaming live market data."}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Broker Grid */}
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 mb-10">
           {BROKERS.map((broker, i) => (
