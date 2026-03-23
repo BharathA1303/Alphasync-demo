@@ -10,6 +10,17 @@ import {
 import { useWatchlistStore } from '../../stores/useWatchlistStore';
 import api from '../../services/api';
 
+const getPriceForSymbol = (prices, symbol) => {
+    const raw = String(symbol || '').trim();
+    if (!raw) return {};
+
+    const upper = raw.toUpperCase();
+    const withNs = upper.endsWith('.NS') || upper.endsWith('.BO') || upper.startsWith('^') ? upper : `${upper}.NS`;
+    const withoutNs = upper.replace(/\.(NS|BO)$/i, '');
+
+    return prices[upper] ?? prices[withNs] ?? prices[withoutNs] ?? {};
+};
+
 // ── Tab dots menu (portal — never clipped, never eaten by parent onClick) ──────
 function TabMenu({ wl, anchorRect, onRename, onDelete, onClose, canDelete }) {
     const menuRef = useRef(null);
@@ -80,6 +91,7 @@ export default function Watchlist({
         addItem,
         removeItem,
         reorderItems,
+        fetchPrices,
     } = useWatchlistStore();
 
     const activeWatchlist = watchlists.find(w => w.id === activeId);
@@ -152,6 +164,13 @@ export default function Watchlist({
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, [showAddPanel]);
+
+    // ── Fetch prices whenever items or activeId changes ────────────────────────
+    useEffect(() => {
+        if (items.length > 0) {
+            fetchPrices();
+        }
+    }, [items, fetchPrices]);
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleAdd = useCallback((symbol, exchange) => {
@@ -439,7 +458,7 @@ export default function Watchlist({
                 ) : (
                     <div>
                         {filtered.map((item, index) => {
-                            const price = prices[item.symbol] ?? {};
+                            const price = getPriceForSymbol(prices, item.symbol);
                             const isDragging = dragIndex === index;
                             const isDragOver = dragOverIndex === index && dragIndex !== index;
                             const canDrag = !search;

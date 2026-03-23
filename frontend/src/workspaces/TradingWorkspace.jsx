@@ -137,7 +137,7 @@ export default function TradingWorkspace() {
     useEffect(() => {
         if (watchlistItems.length === 0) return;
         fetchWatchlistPrices();
-        const id = setInterval(fetchWatchlistPrices, 5_000);
+        const id = setInterval(fetchWatchlistPrices, 2_000);
         return () => clearInterval(id);
     }, [watchlistItems, fetchWatchlistPrices]);
 

@@ -3,6 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '../../utils/cn';
 import { formatPrice, formatPercent } from '../../utils/formatters';
 
+const formatSignedNumber = (value, decimals = 2) => {
+    if (value == null || Number.isNaN(Number(value))) return '—';
+    const num = Number(value);
+    const sign = num > 0 ? '+' : '';
+    return `${sign}${num.toFixed(decimals)}`;
+};
+
 /**
  * Single watchlist row.
  * — Default state : symbol name (left) + price & change% (right)
@@ -126,9 +133,8 @@ const WatchlistItem = memo(function WatchlistItem({
                         'flex items-center gap-0.5 text-[10px] font-price tabular-nums',
                         changePositive ? 'text-bull' : 'text-bear'
                     )}>
-                        <span className="text-[9px] leading-none">{changePositive ? '▲' : '▼'}</span>
-                        {price?.change_percent != null
-                            ? formatPercent(price.change_percent, 2)
+                        {price?.change != null && price?.change_percent != null
+                            ? `${formatSignedNumber(price.change, 2)} (${formatPercent(price.change_percent, 2)})`
                             : '—'}
                     </span>
                 </div>
