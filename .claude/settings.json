@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//frontend/src/hooks/**)",
+      "Read(//frontend/src/components/layout/**)",
+      "Read(//frontend/src/stores/**)",
+      "Read(//frontend/src/services/**)",
+      "Read(//c/Users/megan/OneDrive/Desktop/**)",
+      "Bash(npx --no-install eslint src/hooks/useLivePortfolio.js src/pages/DashboardPage.jsx src/components/layout/AppShell.jsx src/store/usePortfolioStore.js src/pages/TradingTerminalPage.jsx)",
+      "Bash(npx -y vite build)",
+      "Bash(find 'c:\\\\AI\\\\new\\\\zebu\\\\alpha zebu\\\\zebu working\\\\alpha_zebu/frontend/src/components/ui' -name *.jsx -o -name *.tsx)",
+      "Bash(npx vite:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm install:*)",
+      "Bash(find '/c/AI/new/zebu/alpha zebu/alphasync-react/alpha_zebu' -name .env* -o -name *.env)",
+      "Bash(xargs cat:*)",
+      "Bash(grep -E \"^@router\\\\.|^app\\\\.\" backend/main.py backend/routes/*.py)",
+      "Bash(node -e \":*)",
+      "Bash(python -c \":*)",
+      "Bash(pip install:*)",
+      "Bash(python3:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\megan\\OneDrive\\Desktop\\all files for vmax\\alpha_zebu\\alpha_zebu\\frontend\\public\\updated"
+    ]
+  }
+}
