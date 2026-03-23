@@ -178,7 +178,32 @@ async def batch_quotes(
     symbols: str = Query(..., description="Comma-separated symbols"),
     user: User = Depends(get_current_user),
 ):
-    symbol_list = [s.strip() for s in symbols.split(",") if s.strip()]
+    symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+
+    def _with_ns(sym: str) -> str:
+        if sym.startswith("^") or sym.endswith(".NS") or sym.endswith(".BO"):
+            return sym
+        return f"{sym}.NS"
+
+    def _base(sym: str) -> str:
+        return sym.replace(".NS", "").replace(".BO", "")
+
+    def _aliases(sym: str) -> set[str]:
+        with_ns = _with_ns(sym)
+        base = _base(with_ns)
+        return {sym, with_ns, base}
+
+    def _upsert_aliases(target: dict, sym: str, quote: dict):
+        if not quote:
+            return
+        for alias in _aliases(sym):
+            target[alias] = quote
+
+    def _has_quote(target: dict, sym: str) -> bool:
+        for alias in _aliases(sym):
+            if alias in target and target[alias]:
+                return True
+        return False
 
     # Try Redis for each symbol first
     results = {}
@@ -187,8 +212,10 @@ async def batch_quotes(
         from cache.redis_client import get_quote as redis_get_quote
         for sym in symbol_list:
             cached = await redis_get_quote(sym)
+            if not cached:
+                cached = await redis_get_quote(_with_ns(sym))
             if cached:
-                results[sym] = cached
+                _upsert_aliases(results, sym, cached)
             else:
                 missing.append(sym)
     except Exception:
@@ -196,7 +223,17 @@ async def batch_quotes(
 
     if missing:
         live = await market_data.get_batch_quotes(missing, user_id=user.id)
-        results.update(live)
+        for sym, quote in (live or {}).items():
+            _upsert_aliases(results, sym, quote)
+
+    # Final fallback: fill each remaining missing symbol via per-symbol quote call.
+    still_missing = [sym for sym in symbol_list if not _has_quote(results, sym)]
+    for sym in still_missing:
+        quote = await market_data.get_quote_safe(sym, user.id)
+        if not quote:
+            quote = await market_data.get_yfinance_quote(market_data._format_symbol(sym))
+        if quote:
+            _upsert_aliases(results, sym, quote)
 
     return {"quotes": results}
 
