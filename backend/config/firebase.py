@@ -173,6 +173,19 @@ def verify_firebase_token(id_token: str) -> Optional[dict]:
             )
             return None
 
+    # In DEBUG mode, accept demo tokens from the frontend demo mode
+    # (frontend runs without Firebase web SDK credentials)
+    if settings.DEBUG and id_token == "demo-token-alphasync":
+        logger.debug("Accepting demo token in DEBUG mode")
+        return {
+            "uid": "dev-user-123",
+            "email": "demo@alphasync.app",
+            "name": "Demo Trader",
+            "email_verified": True,
+            "iss": "demo-mode",
+            "sub": "dev-user-123",
+        }
+
     # Firebase credentials are available — verify the token
     try:
         # Allow small clock skew between client and server to prevent

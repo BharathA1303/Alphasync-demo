@@ -71,7 +71,7 @@ class MarketDataWorker:
 
         while self._running:
             try:
-                # CHECK MARKET STATE FIRST — if closed, skip all data generation
+                # CHECK MARKET STATE — adapt polling frequency
                 actual_state = market_session.get_current_state()
                 market_closed = actual_state in (
                     MarketState.WEEKEND,
@@ -79,17 +79,9 @@ class MarketDataWorker:
                     MarketState.CLOSED,
                 )
 
-                if market_closed:
-                    # Market is closed — STOP ALL DATA GENERATION
-                    # (matching Zerodha/broker behavior)
-                    # Users see only cached previous close data from Redis
-                    # No new fetches, no new events emitted
-                    logger.debug(
-                        f"Market closed ({actual_state.value}) — skipping data generation, "
-                        "serving cached previous close data only"
-                    )
-                    await asyncio.sleep(self.IDLE_INTERVAL)
-                    continue
+                # NOTE: We no longer skip data generation when market is closed.
+                # Demo users still need price data (previous close / yfinance).
+                # We just reduce polling frequency.
 
                 # Get any available provider session
                 from services.broker_session import broker_session_manager
@@ -194,9 +186,9 @@ class MarketDataWorker:
                 except Exception as _te:
                     logger.debug(f"Ticker cache refresh failed: {_te}")
 
-                # Market is open — poll at active interval (3s)
-                # (Market closed state is already handled at top of loop with early continue)
-                await asyncio.sleep(self.ACTIVE_INTERVAL)
+                # Adapt polling frequency: 3s when market open, 60s when closed
+                interval = self.IDLE_INTERVAL if market_closed else self.ACTIVE_INTERVAL
+                await asyncio.sleep(interval)
 
             except asyncio.CancelledError:
                 break

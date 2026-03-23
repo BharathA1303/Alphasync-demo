@@ -10,10 +10,28 @@ import {
     sendPasswordResetEmail,
     sendEmailVerification,
     updateProfile,
+    DEMO_MODE,
 } from '../config/firebase';
 import api from '../services/api';
 
+/** Demo user profile (used when Firebase is not configured) */
+const DEMO_USER_PROFILE = {
+    id: 'demo-user-001',
+    uid: 'demo-user-001',
+    email: 'demo@alphasync.app',
+    full_name: 'Demo Trader',
+    username: 'demo_trader',
+    trading_mode: 'demo',
+    initial_capital: 1000000,
+    created_at: new Date().toISOString(),
+};
+
 async function syncUserWithBackend(firebaseUser, payload = {}) {
+    // In demo mode, skip backend sync — return mock profile
+    if (DEMO_MODE) {
+        return { data: { user: DEMO_USER_PROFILE, is_new_user: false } };
+    }
+
     const firstToken = await firebaseUser.getIdToken();
     localStorage.setItem('alphasync_token', firstToken);
 
@@ -49,6 +67,17 @@ async function clearInvalidSession() {
  *   4. Backend returns local user profile
  *   5. All subsequent API calls use the Firebase ID token as Bearer
  */
+// In demo mode, set up localStorage before store creation so the
+// initial state is ready on the very first render (no async gap).
+if (DEMO_MODE) {
+    if (!localStorage.getItem('alphasync_user')) {
+        localStorage.setItem('alphasync_user', JSON.stringify(DEMO_USER_PROFILE));
+    }
+    localStorage.setItem('alphasync_token', 'demo-token-alphasync');
+    localStorage.setItem('alphasync_trading_mode', 'demo');
+    localStorage.setItem('alphasync_onboarded', '1');
+}
+
 export const useAuthStore = create((set, get) => ({
     /** @type {object|null} */
     user: (() => {
@@ -59,13 +88,15 @@ export const useAuthStore = create((set, get) => ({
     })(),
 
     /** @type {import('firebase/auth').User|null} */
-    firebaseUser: null,
+    firebaseUser: DEMO_MODE
+        ? { uid: 'demo-user-001', getIdToken: async () => 'demo-token-alphasync' }
+        : null,
 
     /** @type {boolean} */
-    loading: true,
+    loading: DEMO_MODE ? false : true,
 
     /** @type {boolean} */
-    initializing: true,
+    initializing: DEMO_MODE ? false : true,
 
     // ─── Initialize Firebase auth listener ────────────────────────────────────
 
@@ -74,6 +105,12 @@ export const useAuthStore = create((set, get) => ({
      * Automatically gets fresh tokens and syncs with backend.
      */
     initAuth: () => {
+        // DEMO MODE: already initialized synchronously at store creation time.
+        // Nothing to do here — just return a noop unsubscribe.
+        if (DEMO_MODE) {
+            return () => {};
+        }
+
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 // For email/password users, don't sync until email is verified
@@ -207,12 +244,14 @@ export const useAuthStore = create((set, get) => ({
     },
 
     logout: async () => {
-        try {
-            await api.post('/auth/logout');
-        } catch {
-            // Best-effort
+        if (!DEMO_MODE) {
+            try {
+                await api.post('/auth/logout');
+            } catch {
+                // Best-effort
+            }
+            await signOut(auth);
         }
-        await signOut(auth);
         localStorage.removeItem('alphasync_token');
         localStorage.removeItem('alphasync_user');
         localStorage.removeItem('alphasync_onboarded');

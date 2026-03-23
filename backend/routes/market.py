@@ -31,11 +31,17 @@ async def get_quote(symbol: str, user: User = Depends(get_current_user)):
     except Exception as e:
         logger.debug(f"Redis quote read failed ({symbol}): {e}")
 
-    # 2. Fallback: fetch via user's provider or yfinance
+    # 2. Fallback: fetch via user's provider (now includes yfinance fallback)
     quote = await market_data.get_quote_safe(symbol, user.id)
-    if not quote:
-        raise HTTPException(status_code=404, detail="Symbol not found or data unavailable")
-    return quote
+    if quote:
+        return quote
+
+    # 3. Final fallback: direct yfinance quote
+    yf_quote = await market_data.get_yfinance_quote(market_data._format_symbol(symbol))
+    if yf_quote:
+        return yf_quote
+
+    raise HTTPException(status_code=404, detail="Symbol not found or data unavailable")
 
 
 @router.get("/search")
@@ -64,6 +70,11 @@ async def get_history(
 
     data = await market_data.get_historical_data(symbol, period, interval, user_id=user.id)
 
+    # If provider + built-in fallback returned nothing, try yfinance directly
+    if not data:
+        formatted = market_data._format_symbol(symbol)
+        data = await market_data.get_yfinance_history(formatted, period=period, interval=interval)
+
     # Write to Redis for next caller
     if data:
         try:
@@ -79,7 +90,7 @@ async def get_history(
 async def get_indices(user: User = Depends(get_current_user)):
     """
     Index quotes — reads from Redis (populated by master session worker).
-    Falls back to live fetch if cache miss.
+    Falls back to live fetch if cache miss, then yfinance.
     """
     try:
         from cache.redis_client import get_indices as redis_get_indices
@@ -90,7 +101,17 @@ async def get_indices(user: User = Depends(get_current_user)):
         logger.debug(f"Redis indices read failed: {e}")
 
     indices = await market_data.get_indices(user_id=user.id)
-    return {"indices": indices}
+    if indices:
+        return {"indices": indices}
+
+    # Fallback: fetch indices via yfinance
+    yf_indices = []
+    for idx_info in market_data.INDIAN_INDICES:
+        yf_q = await market_data.get_yfinance_quote(idx_info["symbol"])
+        if yf_q:
+            yf_q["name"] = idx_info["name"]
+            yf_indices.append(yf_q)
+    return {"indices": yf_indices}
 
 
 @router.get("/ticker")

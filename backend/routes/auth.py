@@ -54,6 +54,9 @@ async def get_current_user(
 
     Every protected route depends on this. The frontend sends the
     Firebase ID token as a Bearer token in the Authorization header.
+
+    In DEBUG mode without Firebase credentials, a demo user is
+    auto-created so the app works out of the box.
     """
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -72,10 +75,37 @@ async def get_current_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="User not found. Please sign in again.",
-        )
+        # In DEBUG mode, auto-create the demo user so the app works
+        # without any Firebase setup
+        if settings.DEBUG:
+            email = claims.get("email", "demo@alphasync.app")
+            user = User(
+                firebase_uid=firebase_uid,
+                email=email,
+                username=claims.get("name", "demo_trader").lower().replace(" ", "_"),
+                full_name=claims.get("name", "Demo Trader"),
+                auth_provider="demo",
+                virtual_capital=settings.DEFAULT_VIRTUAL_CAPITAL,
+                is_verified=True,
+                is_active=True,
+            )
+            db.add(user)
+            await db.flush()
+
+            # Create portfolio for the demo user
+            portfolio = Portfolio(
+                user_id=user.id,
+                available_capital=settings.DEFAULT_VIRTUAL_CAPITAL,
+            )
+            db.add(portfolio)
+            await db.commit()
+            await db.refresh(user)
+            logger.info(f"Auto-created demo user: {user.email} (uid={firebase_uid})")
+        else:
+            raise HTTPException(
+                status_code=401,
+                detail="User not found. Please sign in again.",
+            )
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated")

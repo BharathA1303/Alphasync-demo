@@ -296,6 +296,13 @@ export default function RegisterPage() {
   // Check if user already has an active session with onboarding complete
   const hasActiveSession = existingUser && localStorage.getItem('alphasync_onboarded');
 
+  // Auto-redirect to dashboard if already authenticated (e.g. demo mode)
+  useEffect(() => {
+    if (hasActiveSession) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [hasActiveSession, navigate]);
+
   const set = (key) => (e) =>
     setFormData((prev) => ({ ...prev, [key]: e.target.value }));
 

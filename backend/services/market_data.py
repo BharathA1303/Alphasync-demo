@@ -162,9 +162,9 @@ async def get_quote(symbol: str, user_id: str) -> dict:
 async def get_quote_safe(symbol: str, user_id: str) -> Optional[dict]:
     """
     Like get_quote() but returns None instead of raising on safe errors.
-    
-    Does NOT fall back to yfinance. If the broker is not connected, returns None.
-    Caller must handle the None response (show error message to user).
+
+    Falls back to yfinance when no broker session is available so that
+    demo-mode users always see price data.
     """
     fmt = _format_symbol(symbol)
     try:
@@ -172,14 +172,14 @@ async def get_quote_safe(symbol: str, user_id: str) -> Optional[dict]:
     except BrokerNotConnected:
         logger.info(
             f"get_quote_safe({fmt}, user {str(user_id)[:8]}...): "
-            f"no broker session — master session is required"
+            f"no broker session — falling back to yfinance"
         )
-        return None
+        return await get_yfinance_quote(fmt)
     except (ProviderDataUnavailable, RuntimeError) as e:
         logger.debug(
-            f"get_quote_safe({fmt}, {str(user_id)[:8] if user_id else '?'}): {e}"
+            f"get_quote_safe({fmt}, {str(user_id)[:8] if user_id else '?'}): {e} — trying yfinance"
         )
-        return None
+        return await get_yfinance_quote(fmt)
     except Exception as e:
         logger.error(f"get_quote_safe({fmt}) unexpected: {e}")
         return None
@@ -208,22 +208,21 @@ async def get_system_quote(symbol: str) -> dict:
 async def get_system_quote_safe(symbol: str) -> Optional[dict]:
     """
     System-level quote using master Zebu or any active provider session.
-    
-    Does NOT fall back to yfinance. If no master session is active, returns None.
-    Caller should ensure master_session_service.initialize() was called at startup.
+
+    Falls back to yfinance when no master session is active so that
+    ticker bars and indices always show data for demo users.
     """
     fmt = _format_symbol(symbol)
     try:
         return await get_system_quote(fmt)
     except RuntimeError:
-        logger.warning(
-            f"get_system_quote_safe({fmt}): no master session active. "
-            f"Check that ZEBU_MASTER_USER_ID and credentials are configured in .env"
+        logger.info(
+            f"get_system_quote_safe({fmt}): no master session — falling back to yfinance"
         )
-        return None
+        return await get_yfinance_quote(fmt)
     except (ProviderDataUnavailable,) as e:
-        logger.debug(f"get_system_quote_safe({fmt}): {e}")
-        return None
+        logger.debug(f"get_system_quote_safe({fmt}): {e} — trying yfinance")
+        return await get_yfinance_quote(fmt)
     except Exception as e:
         logger.error(f"get_system_quote_safe({fmt}) unexpected: {e}")
         return None
@@ -409,8 +408,10 @@ async def get_historical_data(
             await get_yfinance_history(symbol, period=period, interval=interval)
         )
     except Exception as e:
-        logger.error(f"get_historical_data({symbol}) failed: {e}")
-        return []
+        logger.error(f"get_historical_data({symbol}) failed: {e}, trying yfinance")
+        return _normalize_candles(
+            await get_yfinance_history(symbol, period=period, interval=interval)
+        )
 
 
 async def search_stocks(query: str) -> list:

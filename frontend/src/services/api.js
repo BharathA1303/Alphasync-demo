@@ -1,21 +1,27 @@
 import axios from 'axios';
-import { auth } from '../config/firebase';
+import { auth, DEMO_MODE } from '../config/firebase';
 
 const api = axios.create({
     baseURL: '/api',
     headers: { 'Content-Type': 'application/json' },
 });
 
-// Add Firebase ID token to requests (auto-refreshed by Firebase SDK)
+// Add auth token to requests
 api.interceptors.request.use(async (config) => {
     try {
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-            // getIdToken() auto-refreshes if token is expired
-            const token = await currentUser.getIdToken();
+        if (DEMO_MODE) {
+            // Demo mode — use stored demo token
+            const token = localStorage.getItem('alphasync_token') || 'demo-token-alphasync';
             config.headers.Authorization = `Bearer ${token}`;
-            // Also keep localStorage in sync for WebSocket connections
-            localStorage.setItem('alphasync_token', token);
+        } else {
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+                // getIdToken() auto-refreshes if token is expired
+                const token = await currentUser.getIdToken();
+                config.headers.Authorization = `Bearer ${token}`;
+                // Also keep localStorage in sync for WebSocket connections
+                localStorage.setItem('alphasync_token', token);
+            }
         }
     } catch {
         // If token refresh fails, let the request proceed without auth
@@ -28,6 +34,11 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
+        // In demo mode, don't force logout on 401 — backend may not be running
+        if (DEMO_MODE) {
+            return Promise.reject(error);
+        }
+
         if (
             error.response?.status === 401 &&
             !error.config?.url?.includes('/auth/sync') &&
@@ -55,7 +66,7 @@ api.interceptors.response.use(
 );
 
 function _forceLogout() {
-    auth.signOut().catch(() => { });
+    auth.signOut?.().catch(() => { });
     localStorage.removeItem('alphasync_token');
     localStorage.removeItem('alphasync_user');
     if (window.location.pathname !== '/login') {

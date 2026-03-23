@@ -163,7 +163,9 @@ class MarketSessionEngine:
 
 
 # ── Singleton instance ─────────────────────────────────────
-# simulation_mode=False: enforce real NSE market hours.
-# All trades are still paper-traded (no real broker API), but orders
-# can only be placed during market open hours (Mon-Fri 9:00-15:20 IST).
-market_session = MarketSessionEngine(simulation_mode=False)
+# simulation_mode=True: allow trading and data generation at all times.
+# This is a demo/paper-trading platform — users should be able to
+# practice outside market hours.  The worker still reports the *real*
+# market state so the UI can display "Market Closed" badges, but data
+# streaming and order placement are never blocked.
+market_session = MarketSessionEngine(simulation_mode=True)
